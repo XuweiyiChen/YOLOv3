@@ -1,6 +1,3 @@
-"""
-Creates a Pytorch dataset to load the Pascal VOC & MS COCO datasets
-"""
 import config
 import numpy as np
 import os
@@ -20,6 +17,11 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 
 class YOLODataset(Dataset):
+    """
+    Load an image and its bounding boxes with the help
+    of Albumentations library and then create the matrix
+    form the target and compute the loss
+    """
     def __init__(
             self,
             csv_file,
@@ -27,10 +29,23 @@ class YOLODataset(Dataset):
             label_dir,
             anchors,
             image_size=416,
-            S=[13, 26, 52],
-            C=20,
-            transform=None,
+            S = [13, 26, 52],
+            C = 20,
+            transform = None,
     ):
+        """
+        Initialize the YOLODataset object
+
+        Args:
+            csv_file:
+            img_dir:
+            label_dir:
+            anchors:
+            image_size:
+            S:
+            C:
+            transform:
+        """
         self.annotations = pd.read_csv(csv_file)
         self.img_dir = img_dir
         self.label_dir = label_dir
@@ -44,9 +59,27 @@ class YOLODataset(Dataset):
         self.ignore_iou_thresh = 0.5
 
     def __len__(self):
+        """
+        return the length of the annotation
+
+        Returns:
+            integers: length of the annotation
+        """
         return len(self.annotations)
 
     def __getitem__(self, index):
+        """
+        This is how we handle anchors box. For each bounding box,
+        assign it to the grid cell which contains midpoint and decide
+        which anchor works better by Union of Intersection.
+
+        Args:
+            index: integer
+
+        Returns:
+            image
+            target in a tuple form
+        """
         label_path = os.path.join(self.label_dir, self.annotations.iloc[index, 1])
         # np.roll can help us solve certain question efficiently
         bboxes = np.roll(np.loadtxt(fname=label_path, delimiter=" ", ndmin=2), 4, axis=1).tolist()
@@ -93,14 +126,18 @@ class YOLODataset(Dataset):
 
 
 def test():
+    """
+    Here is a test piece in order to determine whether
+    dataset works correctly or not
+    """
     anchors = config.ANCHORS
 
     transform = config.test_transforms
 
     dataset = YOLODataset(
-        "COCO/train.csv",
-        "COCO/images/images/",
-        "COCO/labels/labels_new/",
+        "Pedestrian/train.csv",
+        "Pedestrian/images/images/",
+        "Pedestrian/labels/labels_new/",
         S=[13, 26, 52],
         anchors=anchors,
         transform=transform,
@@ -120,10 +157,6 @@ def test():
             boxes += cells_to_bboxes(
                 y[i], is_preds=False, S=y[i].shape[2], anchors=anchor
             )[0]
-        boxes = nms(boxes, iou_threshold=1, threshold=0.7, box_format="midpoint")
+        boxes = nms(boxes, iou_threshold=1, threshold=0.6, box_format="midpoint")
         print(boxes)
         plot_image(x[0].permute(1, 2, 0).to("cpu"), boxes)
-
-
-if __name__ == "__main__":
-    test()
